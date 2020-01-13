@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -14,8 +15,8 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.HandleFunc("/", index)
-	router.HandleFunc("/", index)
+	router.HandleFunc("/api", index)
+	router.HandleFunc("/dummy", dummy)
 	router.NotFoundHandler = http.HandlerFunc(notFoundPage)
 	router.MethodNotAllowedHandler = http.HandlerFunc(methodNotAllowed)
 
@@ -29,7 +30,7 @@ var limiter = rate.NewLimiter(10, 1)
 
 func limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if limiter.Allow() {
+		if strings.HasPrefix(r.RequestURI, "/dummy") || limiter.Allow() {
 			next.ServeHTTP(w, r)
 		} else {
 			log.Print("429 response")
@@ -45,6 +46,11 @@ func index(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Request starting: %s\n", t.Format("2006-01-02T15:04:05.999999"))
 
 	responseText := t.Format("2006-01-02T15:04:05") + "-200 OK\n"
+	w.Write([]byte(responseText))
+}
+func dummy(w http.ResponseWriter, r *http.Request) {
+	t := time.Now().UTC()
+	responseText := t.Format("Dummy-2006-01-02T15:04:05") + "-200 OK\n"
 	w.Write([]byte(responseText))
 }
 func notFoundPage(w http.ResponseWriter, r *http.Request) {
