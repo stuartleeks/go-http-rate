@@ -25,7 +25,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, limit(router)))
 }
 
-var limiter = rate.NewLimiter(10, 3)
+var limiter = rate.NewLimiter(10, 1)
 
 func limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
