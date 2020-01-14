@@ -28,7 +28,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, router))
 }
 
-var limiter = rate.NewLimiter(10, 1)
+var limiter = rate.NewLimiter(200, 10)
 
 func limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +62,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 	responseText := t.Format("2006-01-02T15:04:05") + "-200 OK\n"
 	w.Write([]byte(responseText))
+	time.Sleep(100 * time.Millisecond)
 }
 func dummy(w http.ResponseWriter, r *http.Request) {
 	t := time.Now().UTC()
