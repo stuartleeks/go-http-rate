@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+type Stats map[int]int // map of
+
 func main() {
 	const DefaultURL = "http://localhost:8080/api"
 
@@ -37,11 +39,12 @@ func main() {
 		}
 	}
 
+	// notifyChan := make(chan string, parallel) // used to notify on time key changes
 	doneChan := make(chan bool, parallel)
 
-	statsArray := make([]map[string]int, parallel)
+	statsArray := make([]map[string]Stats, parallel)
 	for loopIndex := 0; loopIndex < parallel; loopIndex++ {
-		stats := map[string]int{}
+		stats := map[string]Stats{}
 		statsArray[loopIndex] = stats
 		go func() {
 			for index := 0; index < count; index++ {
@@ -50,8 +53,11 @@ func main() {
 					panic(err)
 				}
 				t := time.Now().UTC()
-				key := fmt.Sprintf("%s|%d", t.Format("2006-01-02T15:04:05"), status)
-				stats[key]++
+				key := t.Format("2006-01-02T15:04:05")
+				if stats[key] == nil {
+					stats[key] = Stats{}
+				}
+				stats[key][status]++
 			}
 			doneChan <- true
 		}()
@@ -59,19 +65,26 @@ func main() {
 
 	// Wait for loops to finish
 	for remainingLoops := parallel; remainingLoops > 0; remainingLoops-- {
-		<- doneChan
+		<-doneChan
 	}
 
-	aggregatedStats := map[string]int{}
+	aggregatedStats := map[string]Stats{}
 	for index := 0; index < parallel; index++ {
 		stats := statsArray[index]
 		for k := range stats {
-			aggregatedStats[k] += stats[k]
+			for k2 := range stats[k] {
+				if aggregatedStats[k] == nil {
+					aggregatedStats[k] = Stats{}
+				}
+				aggregatedStats[k][k2] += stats[k][k2]
+			}
 		}
 	}
 
 	for k, v := range aggregatedStats {
-		fmt.Printf("%s %d\n", k, v)
+		for k2, v2 := range v {
+			fmt.Printf("%s|%d %d\n", k, k2, v2)
+		}
 	}
 }
 func makeRequest(url string, bearerToken string) (int, error) {
