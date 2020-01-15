@@ -39,51 +39,68 @@ func main() {
 		}
 	}
 
-	// notifyChan := make(chan string, parallel) // used to notify on time key changes
+	notifyKeyDone := make(chan string, parallel)     // used to notify on time key changes
+	notifyKeyStarting := make(chan string, parallel) // used to notify on time key changes
 	doneChan := make(chan bool, parallel)
 
 	statsArray := make([]map[string]Stats, parallel)
 	for loopIndex := 0; loopIndex < parallel; loopIndex++ {
 		stats := map[string]Stats{}
 		statsArray[loopIndex] = stats
+		lastKey := ""
 		go func() {
 			for index := 0; index < count; index++ {
+				t := time.Now().UTC()
+				key := t.Format("2006-01-02T15:04:05")
+				if lastKey != key {
+					notifyKeyStarting <- key
+				}
 				status, err := makeRequest(url, bearerToken)
 				if err != nil {
 					panic(err)
 				}
-				t := time.Now().UTC()
-				key := t.Format("2006-01-02T15:04:05")
 				if stats[key] == nil {
 					stats[key] = Stats{}
 				}
 				stats[key][status]++
+				if lastKey != key {
+					if lastKey != "" {
+						// notify main func that we're done with that key
+						notifyKeyDone <- lastKey
+					}
+					lastKey = key
+				}
 			}
+			notifyKeyDone <- lastKey
 			doneChan <- true
 		}()
 	}
 
+	notifyCounts := map[string]int{}
+
 	// Wait for loops to finish
-	for remainingLoops := parallel; remainingLoops > 0; remainingLoops-- {
-		<-doneChan
-	}
-
-	aggregatedStats := map[string]Stats{}
-	for index := 0; index < parallel; index++ {
-		stats := statsArray[index]
-		for k := range stats {
-			for k2 := range stats[k] {
-				if aggregatedStats[k] == nil {
-					aggregatedStats[k] = Stats{}
+	for remainingLoops := parallel; remainingLoops > 0; {
+		select {
+		case key := <-notifyKeyStarting:
+			notifyCounts[key]++
+		case key := <-notifyKeyDone:
+			notifyCounts[key]--
+			if notifyCounts[key] == 0 {
+				// time period done with by all goroutines
+				// aggregate and output
+				aggregatedStats := Stats{}
+				for i := 0; i < parallel; i++ {
+					timeStats := statsArray[i][key]
+					for k, v := range timeStats {
+						aggregatedStats[k] += v
+					}
 				}
-				aggregatedStats[k][k2] += stats[k][k2]
+				for k, v := range aggregatedStats {
+					fmt.Printf("%s|%d %d\n", key, k, v)
+				}
 			}
-		}
-	}
-
-	for k, v := range aggregatedStats {
-		for k2, v2 := range v {
-			fmt.Printf("%s|%d %d\n", k, k2, v2)
+		case <-doneChan:
+			remainingLoops--
 		}
 	}
 }
