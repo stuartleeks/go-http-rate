@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,11 @@ type Stats map[int]int // map of
 
 func main() {
 	const DefaultURL = "http://localhost:8080/api"
+
+	rawOutput := false
+	if rawOutputString, found := os.LookupEnv("CLIENT_RAW_OUTPUT"); found {
+		rawOutput = strings.ToUpper(rawOutputString) != "FALSE" // any value except false enables raw output
+	}
 
 	url, found := os.LookupEnv("CLIENT_URL")
 	if !found {
@@ -95,8 +101,12 @@ func main() {
 						aggregatedStats[k] += v
 					}
 				}
-				for k, v := range aggregatedStats {
-					fmt.Printf("%s|%d %d\n", key, k, v)
+				if rawOutput {
+					fmt.Println(aggregatedStats[200]) // raw output, just show 200 responses
+				} else {
+					for k, v := range aggregatedStats {
+						fmt.Printf("%s|%d %d\n", key, k, v)
+					}
 				}
 			}
 		case <-doneChan:
